@@ -31,6 +31,10 @@ class PayshenError(Exception):
         self.request_id: Optional[str] = None
         #: On ``routing_failed``: every connection considered and why it was left out.
         self.excluded: Optional[List[Any]] = None
+        #: On a refund answered ``refund_pending``, ``refund_result_unknown``,
+        #: ``psp_error`` or ``state_unconfirmed``: the refund it is about, the same
+        #: ``refund_id`` a later ``payment.refunded`` or ``payment.refund_failed`` carries.
+        self.refund_id: Optional[str] = None
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(status={self.status}, code={self.code!r}, message={self.message!r})"

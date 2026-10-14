@@ -159,6 +159,18 @@ def test_routing_failed_carries_why_each_connection_was_left_out(slept: List[flo
     assert e.value.excluded == excluded
 
 
+def test_a_pending_refund_names_the_refund_it_is_about(slept: List[float]) -> None:
+    rid = "b1f0c2d4-0000-4000-8000-000000000001"
+    t = FakeTransport(answer(409, {"error": {"code": "refund_pending", "message": "Still processing.", "refund_id": rid}}))
+    with pytest.raises(PayshenError) as e:
+        client(t, slept).payments.refund("pay_1", amount=200)
+    assert (e.value.code, e.value.refund_id) == ("refund_pending", rid)
+    t2 = FakeTransport(answer(422, {"error": {"code": "invalid_amount", "message": "No."}}))
+    with pytest.raises(PayshenError) as e2:
+        client(t2, slept).payments.refund("pay_1", amount=9)
+    assert e2.value.refund_id is None
+
+
 def test_no_answer_at_all_becomes_a_network_error_after_the_retries(slept: List[float]) -> None:
     t = FakeTransport(*(TransportError("timeout") for _ in range(4)))
     with pytest.raises(NetworkError):
