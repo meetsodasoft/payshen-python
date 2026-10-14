@@ -219,6 +219,8 @@ def _fail(e: PayshenError, response: Response, error: Mapping[str, Any]) -> Pays
     e.request_id = response.header("x-request-id")
     if isinstance(error.get("excluded"), list):
         e.excluded = list(error["excluded"])
+    if isinstance(error.get("refund_id"), str):
+        e.refund_id = error["refund_id"]
     return e
 
 
