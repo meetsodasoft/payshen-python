@@ -65,14 +65,21 @@ def verify_webhook_signature(
         parts[key.strip()] = value.strip()
     t = parts.get("t", "")
     v1 = parts.get("v1", "")
-    if not (t.isascii() and t.isdigit()) or not v1:
+    # Bounded and ASCII before anything else reads them: a 4,300-digit `t` makes
+    # int() raise, and a non-ASCII `v1` makes compare_digest raise, and either
+    # would escape as something other than SignatureVerificationError.
+    if not (t.isascii() and t.isdigit() and len(t) <= 12) or not v1 or not v1.isascii():
         raise SignatureVerificationError("malformed_signature", "Signature is malformed.")
 
     current = int(time.time()) if now is None else now
     if abs(current - int(t)) > tolerance_seconds:
         raise SignatureVerificationError("expired_signature", "Signature timestamp outside tolerance window.")
 
-    secrets = [secret] if isinstance(secret, str) else list(secret)
+    # An empty secret signs with an empty key, which anyone can do: it is never a
+    # candidate. os.environ.get(..., "") of an unset variable, or a rotation list
+    # whose old secret is no longer set, would otherwise accept forged events.
+    candidates = [secret] if isinstance(secret, str) else list(secret)
+    secrets = [s for s in candidates if isinstance(s, str) and s]
     if not secrets:
         raise SignatureVerificationError("missing_secret", "No signing secret was provided.")
 
