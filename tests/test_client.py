@@ -208,6 +208,12 @@ def test_the_key_is_never_sent_over_plain_http() -> None:
         Payshen("ps_live_x", base_url="http://api.example.com")
 
 
+@pytest.mark.parametrize("url", ["ftp://api.payshen.com", "file:///etc/passwd", "api.payshen.com"])
+def test_only_an_http_url_can_be_the_base(url: str) -> None:
+    with pytest.raises(ValueError):
+        Payshen("ps_live_x", base_url=url)
+
+
 def test_localhost_over_http_is_allowed_for_a_mock_server(slept: List[float]) -> None:
     t = FakeTransport(answer(200, {"data": PAYMENT}))
     client(t, slept, base_url="http://127.0.0.1:4010/").payments.get("pay_1")

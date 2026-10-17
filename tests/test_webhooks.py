@@ -61,6 +61,21 @@ def test_everything_else_is_refused_with_its_reason(name: str, call: Callable[[]
     assert refusal(call) == code, name
 
 
+def test_an_empty_secret_never_verifies_a_forgery() -> None:
+    # Signed with an empty key, which anyone can do.
+    forged = header(NOW, secret="")
+    assert refusal(lambda: verify_webhook_signature(BODY, forged, "", now=NOW)) == "missing_secret"
+    assert refusal(lambda: verify_webhook_signature(BODY, forged, ["", ""], now=NOW)) == "missing_secret"
+    # A rotation whose old secret is no longer set: the empty one is ignored, the real one decides.
+    assert refusal(lambda: verify_webhook_signature(BODY, forged, [SECRET, ""], now=NOW)) == "invalid_signature"
+    assert refusal(lambda: verify_webhook_signature(BODY, header(NOW), [SECRET, ""], now=NOW)) == "accepted"
+
+
+def test_a_hostile_header_is_malformed_not_a_crash() -> None:
+    assert refusal(lambda: verify_webhook_signature(BODY, f"t={NOW},v1=\u00e9\u00e9", SECRET, now=NOW)) == "malformed_signature"
+    assert refusal(lambda: verify_webhook_signature(BODY, "t=" + "9" * 5000 + ",v1=00", SECRET, now=NOW)) == "malformed_signature"
+
+
 def test_either_secret_verifies_during_a_rotation() -> None:
     assert refusal(lambda: verify_webhook_signature(BODY, header(NOW), ["whsec_new", SECRET], now=NOW)) == "accepted"
     assert refusal(lambda: verify_webhook_signature(BODY, header(NOW), ["whsec_new", "whsec_newer"], now=NOW)) == "invalid_signature"

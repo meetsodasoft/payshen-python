@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.2
+
+2026-10-17. Security fixes; upgrade.
+
+- **Webhook verification never accepts an empty secret.** `verify_webhook_signature` and `parse_webhook_event`
+  ignore an empty or non-string secret, and refuse with `missing_secret` when none is left. Before, an empty value
+  (for example `os.environ.get("PAYSHEN_WEBHOOK_SECRET", "")`, or an empty old secret in a rotation list) let
+  anyone sign a forged event with an empty key.
+- **A hostile header is `malformed_signature`**, not a `TypeError` or `ValueError`: a non-ASCII `v1` or an
+  over-long `t` used to escape the documented `except SignatureVerificationError`.
+- **`base_url` must be an `https://` URL** (`http://` for localhost only); other schemes are refused.
+
 ## 0.1.1
 
 2026-10-14. Additive; nothing you use changes.

@@ -108,6 +108,9 @@ class Payshen:
         # on the path can read it. Localhost is exempt, for a mock server.
         if self._base_url.lower().startswith("http://") and not _LOCALHOST.match(self._base_url):
             raise ValueError("Payshen base_url must use https: an API key sent over plain HTTP is readable in transit.")
+        # Any other scheme (ftp://, file://...) is never the API, and urllib would open it.
+        if not self._base_url.lower().startswith(("https://", "http://")):
+            raise ValueError("Payshen base_url must be an https URL.")
         self._timeout = float(timeout)
         self._max_retries = max(0, int(max_retries))
         self._transport: Transport = transport or UrllibTransport()
