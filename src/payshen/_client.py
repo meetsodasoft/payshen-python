@@ -36,6 +36,7 @@ _FINAL_CODES = frozenset(
 _BACKOFF_BASE_MS = 250
 _BACKOFF_CAP_MS = 4000
 _LOCALHOST = re.compile(r"^http://(localhost|127\.0\.0\.1|\[::1\])(:|/|$)", re.IGNORECASE)
+_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
 
 Json = Dict[str, Any]
 
@@ -75,8 +76,13 @@ def _query(params: Mapping[str, Any]) -> str:
     return "?" + urlencode(pairs, quote_via=quote) if pairs else ""
 
 
-def _seg(value: str) -> str:
-    return quote(value, safe="")
+def _seg(value: str, name: str = "id") -> str:
+    # Encoding alone is not enough: "." and ".." survive it, and get(".") would
+    # read the list while refund("..") would post to another route. Payshen ids
+    # are letters, digits, "_" and "-".
+    if not isinstance(value, str) or not _ID.fullmatch(value):
+        raise ValueError(f'{name} must be 1-128 letters, digits, "_" or "-".')
+    return value
 
 
 class Payshen:
@@ -254,7 +260,7 @@ class Payments:
         return _data(self._client.request("POST", "/api/v1/payments", params, idempotency_key=idempotency_key))
 
     def get(self, payment_id: str) -> Json:
-        return _data(self._client.request("GET", f"/api/v1/payments/{_seg(payment_id)}"))
+        return _data(self._client.request("GET", f"/api/v1/payments/{_seg(payment_id, 'payment_id')}"))
 
     def list(self, *, limit: Optional[int] = None, before: Optional[str] = None, status: Optional[str] = None) -> Page:
         """One page, newest first, in the key's environment."""
@@ -271,17 +277,17 @@ class Payments:
 
     def events(self, payment_id: str) -> List[Json]:
         """The payment's timeline: created, authorized, captured, refunded, ..."""
-        return _items(self._client.request("GET", f"/api/v1/payments/{_seg(payment_id)}/events"))
+        return _items(self._client.request("GET", f"/api/v1/payments/{_seg(payment_id, 'payment_id')}/events"))
 
     def capture(self, payment_id: str, *, amount: Optional[int] = None, idempotency_key: Optional[str] = None) -> Json:
         """Capture an authorization, in full (no amount) or in part. A provider that only
         accepts it first answers with the payment ``PENDING``; ``payment.captured`` follows."""
         body = {} if amount is None else {"amount": amount}
-        return _data(self._client.request("POST", f"/api/v1/payments/{_seg(payment_id)}/capture", body, idempotency_key=idempotency_key))
+        return _data(self._client.request("POST", f"/api/v1/payments/{_seg(payment_id, 'payment_id')}/capture", body, idempotency_key=idempotency_key))
 
     def void(self, payment_id: str, *, idempotency_key: Optional[str] = None) -> Json:
         """Release an authorization before capture."""
-        return _data(self._client.request("POST", f"/api/v1/payments/{_seg(payment_id)}/void", {}, idempotency_key=idempotency_key))
+        return _data(self._client.request("POST", f"/api/v1/payments/{_seg(payment_id, 'payment_id')}/void", {}, idempotency_key=idempotency_key))
 
     def refund(self, payment_id: str, *, amount: Optional[int] = None, idempotency_key: Optional[str] = None) -> Json:
         """Refund a captured payment, in full (no amount) or in part.
@@ -293,7 +299,7 @@ class Payments:
         same key answers the final result once it is settled.
         """
         body = {} if amount is None else {"amount": amount}
-        return _data(self._client.request("POST", f"/api/v1/payments/{_seg(payment_id)}/refunds", body, idempotency_key=idempotency_key))
+        return _data(self._client.request("POST", f"/api/v1/payments/{_seg(payment_id, 'payment_id')}/refunds", body, idempotency_key=idempotency_key))
 
 
 class Events:
@@ -344,21 +350,21 @@ class Suggestions:
         return Page.from_answer(self._client.request("GET", "/api/v1/suggestions" + _query({"state": states, "limit": limit, "before": before})))
 
     def get(self, suggestion_id: str) -> Json:
-        return _data(self._client.request("GET", f"/api/v1/suggestions/{_seg(suggestion_id)}"))
+        return _data(self._client.request("GET", f"/api/v1/suggestions/{_seg(suggestion_id, 'suggestion_id')}"))
 
     def accept(self, suggestion_id: str, *, idempotency_key: Optional[str] = None) -> Json:
         """``{"data": {...}, "result": {...}}``. A decided suggestion answers 409 ``suggestion_not_open``."""
-        answer = self._client.request("POST", f"/api/v1/suggestions/{_seg(suggestion_id)}/accept", {}, idempotency_key=idempotency_key)
+        answer = self._client.request("POST", f"/api/v1/suggestions/{_seg(suggestion_id, 'suggestion_id')}/accept", {}, idempotency_key=idempotency_key)
         result = answer.get("result")
         return {"data": _data(answer), "result": result if isinstance(result, dict) else None}
 
     def reject(self, suggestion_id: str, *, reason: Optional[str] = None, idempotency_key: Optional[str] = None) -> Json:
         body = {} if reason is None else {"reason": reason}
-        return _data(self._client.request("POST", f"/api/v1/suggestions/{_seg(suggestion_id)}/reject", body, idempotency_key=idempotency_key))
+        return _data(self._client.request("POST", f"/api/v1/suggestions/{_seg(suggestion_id, 'suggestion_id')}/reject", body, idempotency_key=idempotency_key))
 
     def snooze(self, suggestion_id: str, *, idempotency_key: Optional[str] = None) -> Json:
         """Hide it for 7 days; it comes back open if the evidence still holds."""
-        return _data(self._client.request("POST", f"/api/v1/suggestions/{_seg(suggestion_id)}/snooze", {}, idempotency_key=idempotency_key))
+        return _data(self._client.request("POST", f"/api/v1/suggestions/{_seg(suggestion_id, 'suggestion_id')}/snooze", {}, idempotency_key=idempotency_key))
 
 
 class Merchants:
