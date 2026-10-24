@@ -94,10 +94,35 @@ def test_capture_void_and_refund_send_objects(slept: List[float]) -> None:
     assert t.sent[2]["headers"]["Idempotency-Key"] == "refund-1"
 
 
-def test_ids_are_encoded_into_the_path(slept: List[float]) -> None:
-    t = FakeTransport(answer(200, {"data": PAYMENT}))
-    client(t, slept).payments.get("a/b?c")
-    assert t.sent[0]["url"] == "https://www.payshen.com/api/v1/payments/a%2Fb%3Fc"
+ID_CALLS = {
+    "payments.get": lambda c, i: c.payments.get(i),
+    "payments.events": lambda c, i: c.payments.events(i),
+    "payments.capture": lambda c, i: c.payments.capture(i),
+    "payments.void": lambda c, i: c.payments.void(i),
+    "payments.refund": lambda c, i: c.payments.refund(i),
+    "suggestions.get": lambda c, i: c.suggestions.get(i),
+    "suggestions.accept": lambda c, i: c.suggestions.accept(i),
+    "suggestions.reject": lambda c, i: c.suggestions.reject(i),
+    "suggestions.snooze": lambda c, i: c.suggestions.snooze(i),
+}
+
+
+# "." would read the list, ".." another route; the rest are not ids.
+@pytest.mark.parametrize("bad", ["", ".", "..", "a/b?c", "pay_1/../x", "pay_1\n", "pay 1", "a" * 129, None])
+@pytest.mark.parametrize("call", list(ID_CALLS))
+def test_an_id_that_is_not_an_id_is_refused_before_sending(call: str, bad: Any, slept: List[float]) -> None:
+    t = FakeTransport()
+    with pytest.raises(ValueError, match="must be 1-128 letters"):
+        ID_CALLS[call](client(t, slept), bad)
+    assert t.sent == []
+
+
+def test_an_id_of_letters_digits_underscore_and_dash_goes_into_the_path(slept: List[float]) -> None:
+    t = FakeTransport(answer(200, {"data": PAYMENT}), answer(200, {"data": {}}))
+    client(t, slept).payments.get("pay_01J-xY9")
+    client(t, slept).suggestions.get("s" * 128)
+    assert t.sent[0]["url"] == "https://www.payshen.com/api/v1/payments/pay_01J-xY9"
+    assert t.sent[1]["url"] == "https://www.payshen.com/api/v1/suggestions/" + "s" * 128
 
 
 def test_a_retry_reuses_the_same_key_so_it_cannot_charge_twice(slept: List[float]) -> None:

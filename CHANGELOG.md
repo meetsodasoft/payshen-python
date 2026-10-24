@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3
+
+2026-10-24. Security fix; upgrade. Your code does not change.
+
+- **Ids are checked before they become part of the path**: 1 to 128 letters, digits, `_` or `-`, or `ValueError`
+  and nothing is sent. Before, `payments.get(".")` read the payment list and `payments.refund("..")` posted to
+  another route, because `.` and `..` pass URL encoding unchanged.
+
 ## 0.1.2
 
 2026-10-17. Security fixes; upgrade.
