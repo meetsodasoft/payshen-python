@@ -36,3 +36,6 @@ packages = ["src/payshen"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["error"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/CLAUDE.md"]
